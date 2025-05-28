@@ -13,8 +13,11 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
                 .description(error_message)
                 .color(0xFF0000);
 
-            if let Err(e) = ctx.send(poise::CreateReply::default().embed(embed).ephemeral(true)).await {
-                eprintln!("Error sending error message: {}", e);
+            if let Err(e) = ctx.send(poise::CreateReply::default()
+                .embed(embed)
+                .reply(true)
+                .ephemeral(true)).await {
+                    eprintln!("Error sending error message: {}", e);
             }
         },
         poise::FrameworkError::ArgumentParse { error, ctx, .. } => {
@@ -24,8 +27,11 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
                 .description(error_message)
                 .color(0xFFFF00);
 
-            if let Err(e) = ctx.send(poise::CreateReply::default().embed(embed).ephemeral(true)).await {
-                eprintln!("Error sending error message: {}", e);
+            if let Err(e) = ctx.send(poise::CreateReply::default()
+                .embed(embed)
+                .reply(true)
+                .ephemeral(true)).await {
+                    eprintln!("Error sending error message: {}", e);
             }
         },
         _ => {
@@ -38,12 +44,22 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
 async fn main() {
     // Setup the bot
     let token = std::env::var("BOT_TOKEN").expect("Expected a BOT_TOKEN environment variable");
-    let intents = serenity::GatewayIntents::MESSAGE_CONTENT;
+    let intents = serenity::GatewayIntents::MESSAGE_CONTENT
+        | serenity::GatewayIntents::DIRECT_MESSAGES
+        | serenity::GatewayIntents::GUILDS
+        | serenity::GatewayIntents::GUILD_MESSAGES;
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![commands::roll_dice::roll_dice()],
+            commands: vec![
+                commands::roll_dice::roll_dice(),
+                commands::help::help()
+            ],
             on_error: |error| Box::pin(on_error(error)),
+            prefix_options: poise::PrefixFrameworkOptions {
+                prefix: Some("bb!".into()),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .setup(|context, _ready, framework| {
@@ -54,10 +70,21 @@ async fn main() {
         })
         .build();
 
+    let activity = serenity::ActivityData::watching("for commands (prefix bb! or slash commands)");
+
     let client = serenity::ClientBuilder::new(token, intents)
         .framework(framework)
+        .activity(activity)
         .await;
 
-    client.unwrap().start().await.unwrap();
+    match client {
+        Ok(mut ready) => {
+            match ready.start().await {
+                Ok(done) => done,
+                Err(error) => eprintln!("Error starting client: {}", error)
+            }
+        },
+        Err(error) => eprintln!("Error building client: {}", error)
+    };
 }
 
