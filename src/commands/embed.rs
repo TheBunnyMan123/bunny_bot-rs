@@ -27,6 +27,19 @@ struct RedditVideo {
     fallback_url: Option<String>
 }
 #[derive(Serialize, Deserialize, Debug)]
+struct Image {
+    url: String
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct ImageSet {
+    source: Image,
+    resolutions: Vec<Image>
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct Preview {
+    images: Vec<ImageSet>
+}
+#[derive(Serialize, Deserialize, Debug)]
 struct RedditJsonDataChildData {
     subreddit: String,
     title: String,
@@ -44,7 +57,8 @@ struct RedditJsonDataChildData {
     is_self: bool,
     media: Option<Media>,
     secure_media: Option<Media>,
-    post_hint: Option<String>
+    post_hint: Option<String>,
+    preview: Option<Preview>
 }
 #[derive(Serialize, Deserialize, Debug)]
 struct RedditJsonDataChild {
@@ -85,6 +99,16 @@ fn categorize_reddit_post(post_data: &RedditJsonDataChildData) -> RedditPostCate
         if hint == "link" {
             return RedditPostCategory::Link;
         }
+    }
+
+    let lower_url = post_data.url.to_lowercase();
+    if lower_url.ends_with(".jpg")
+        || lower_url.ends_with(".png")
+        || lower_url.ends_with(".gif")
+        || lower_url.ends_with(".jpeg")
+        || lower_url.ends_with(".webp")
+    {
+        return RedditPostCategory::Image;
     }
 
     if !post_data.url.is_empty() && post_data.url != post_data.permalink {
@@ -139,8 +163,13 @@ pub async fn embed(ctx: Context<'_>, link: String) -> Result<(), Error> {
                                 .url(&format!("https://www.reddit.com{}", post_data.permalink))
                         },
                         RedditPostCategory::Image => {
+                            let mut fixed_url = post_data.url.clone();
+                            if fixed_url.contains("i.redd.it/") && !fixed_url.contains("/gallery/") && post_data.post_hint.as_deref() == Some("image") {
+                                fixed_url = fixed_url.replacen("i.redd.it/", "i.redd.it/gallery/", 1);
+                            }
+
                             embed = embed.url(&format!("https://www.reddit.com{}", post_data.permalink))
-                                .image(&post_data.thumbnail);
+                                .image(fixed_url);
                         },
                         RedditPostCategory::Video => {
                             let video_url_for_embed = if let Some(media) = &post_data.secure_media {
@@ -184,7 +213,6 @@ pub async fn embed(ctx: Context<'_>, link: String) -> Result<(), Error> {
                         .embed(embed)
                         .ephemeral(true)
                         .reply(true)).await?;
-                    // println!("Got unknown hostname {}", hostname)
                 }
             }
         },
