@@ -11,6 +11,13 @@
    cargoLock.lockFile = ./Cargo.lock;
    cargoHash = "";
 
+   buildInputs = with pkgs; [
+      openssl.dev
+   ];
+   nativeBuildInputs = with pkgs; [
+      pkg-config
+   ];
+
    meta = {
       description = "TheBunnyBot, written in rust!";
       homepage = "https://github.com/TheBunnyMan123/bunny_bot-rs";

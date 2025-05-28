@@ -2,13 +2,7 @@ use poise::serenity_prelude as serenity;
 use tyche::{dice::{roller::FastRand as FastRandRoller}, Expr, expr::{CalcError}};
 use crate::types::{Error, Context};
 
-#[poise::command(
-    slash_command,
-    prefix_command,
-    description_localized("en-US", "Rolls some dice using dice notation"),
-    guild_only = false
-)]
-pub async fn roll_dice(ctx: Context<'_>, #[description = "The dice equation to roll"] equation: String) -> Result<(), Error> {
+async fn roll_dice_logic(ctx: Context<'_>, equation: String) -> Result<(), Error> {
     let mut roller = FastRandRoller::default();
     let expr = &equation.parse::<Expr>().map_err(|e: tyche::parse::Error| -> Error {format!("Invalid dice notation: {}\n\n**Tips:**\n- Values greater than 255 are not supported - this is a limitation with the typesrary being used", e).into()})?;
     
@@ -38,5 +32,25 @@ pub async fn roll_dice(ctx: Context<'_>, #[description = "The dice equation to r
         .embed(embed)
         .reply(true)).await?;
     Ok(())
+}
+
+#[poise::command(
+    slash_command,
+    prefix_command,
+    description_localized("en-US", "Rolls some dice using dice notation"),
+    guild_only = false
+)]
+pub async fn roll_dice(ctx: Context<'_>, #[description = "The dice equation to roll"] equation: String) -> Result<(), Error> {
+    roll_dice_logic(ctx, equation).await
+}
+
+#[poise::command(
+    slash_command,
+    prefix_command,
+    description_localized("en-US", "Flips a coin (alias for `roll_dice d2`)"),
+    guild_only = false
+)]
+pub async fn flip_coin(ctx: Context<'_>) -> Result<(), Error> {
+    roll_dice_logic(ctx, "d2".to_string()).await
 }
 

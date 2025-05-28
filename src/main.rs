@@ -53,6 +53,8 @@ async fn main() {
         .options(poise::FrameworkOptions {
             commands: vec![
                 commands::roll_dice::roll_dice(),
+                commands::roll_dice::flip_coin(),
+                commands::embed::embed(),
                 commands::help::help()
             ],
             on_error: |error| Box::pin(on_error(error)),
