@@ -149,12 +149,14 @@ pub async fn embed(ctx: Context<'_>, link: String) -> Result<(), Error> {
                     let post_listing = &json_data[0]["data"]["children"][0];
                     let post_data: RedditJsonDataChildData = serde_json::from_value(post_listing["data"].clone())?;
 
-                    let footer = serenity::builder::CreateEmbedFooter::new(format!("r/{} \u{2022} \u{1F44D}{} \u{2022} \u{1F4AC}{}", post_data.subreddit, post_data.score, post_data.num_comments));
+                    let footer = serenity::builder::CreateEmbedFooter::new(format!("r/{}", post_data.subreddit));
 
                     let mut embed = serenity::builder::CreateEmbed::default()
                         .title(&post_data.title)
                         .url(&link)
                         .footer(footer)
+                        .field("Upvotes", format!("{}", post_data.score), true)
+                        .field("Comments", format!("{}", post_data.num_comments), true)
                         .color(0xFF5700);
 
                     match categorize_reddit_post(&post_data) {
