@@ -74,6 +74,22 @@ struct RedditJson {
     king: String
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct GithubOwner {
+    login: String,
+    avatar_url: String
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct GithubJson {
+    full_name: String,
+    owner: GithubOwner,
+    html_url: String,
+    description: String,
+    forks: i32,
+    open_issues: i32,
+    stargazers_count: i32
+}
+
 fn get_hostname(link: &str) -> Option<String> {
     match Url::parse(link) {
         Ok(url) => url.host_str().map(|s| {s.to_string()}),
@@ -128,6 +144,51 @@ pub async fn embed(ctx: Context<'_>, link: String) -> Result<(), Error> {
     match get_hostname(&link) {
         Some(hostname) => {
             match hostname.as_str() {
+                "github.com" => {
+                    ctx.defer().await?;
+
+                    let mut clean_url = link.as_str();
+
+                    if let Some(stripped) = clean_url.strip_prefix("https://") {
+                        clean_url = stripped;
+                    } else if let Some(stripped) = clean_url.strip_prefix("http://") {
+                        clean_url = stripped;
+                    }
+
+                    if let Some(stripped) = clean_url.strip_prefix("github.com/") {
+                        clean_url = stripped;
+                    }
+                    
+                    let split: Vec<&str> = clean_url.split('/').collect();
+                    let api_url = format!("https://api.github.com/repos/{}/{}", split[0], split[1]);
+
+                    let client = Client::new();
+                    let user_agent = "TheBunnyBot (bunny-bot)";
+                    let response = client
+                        .get(api_url)
+                        .header(reqwest::header::USER_AGENT, user_agent)
+                        .header(reqwest::header::ACCEPT, "application/vnd.github.raw+json")
+                        .send()
+                        .await?
+                        .error_for_status()?;
+
+                    let repo_data: GithubJson = serde_json::from_str(response.text().await?.as_str())?;
+                    
+                    let author = serenity::builder::CreateEmbedAuthor::new(repo_data.owner.login)
+                        .icon_url(repo_data.owner.avatar_url);
+
+                    let embed = serenity::builder::CreateEmbed::default()
+                        .author(author)
+                        .title(&repo_data.full_name)
+                        .description(&repo_data.description)
+                        .url(&repo_data.html_url)
+                        .color(0x24292F)
+                        .field("", format!(":star: {} \u{2022} <:issues:1377465408881164388> {} \u{2022} <:forks:1377466537832743016> {}", repo_data.stargazers_count, repo_data.open_issues, repo_data.forks), false);
+                    
+                    ctx.send(poise::CreateReply::default()
+                        .embed(embed)
+                        .reply(true)).await?;
+                },
                 "www.reddit.com" => {
                     ctx.defer().await?;
 
@@ -149,13 +210,11 @@ pub async fn embed(ctx: Context<'_>, link: String) -> Result<(), Error> {
                     let post_listing = &json_data[0]["data"]["children"][0];
                     let post_data: RedditJsonDataChildData = serde_json::from_value(post_listing["data"].clone())?;
 
-                    let footer = serenity::builder::CreateEmbedFooter::new(format!("r/{} \u{2022} \u{1F44D}{} \u{2022} \u{1F4AC}{}", post_data.subreddit, post_data.score, post_data.num_comments));
-
                     let mut embed = serenity::builder::CreateEmbed::default()
                         .title(&post_data.title)
                         .url(&link)
-                        .footer(footer)
-                        .color(0xFF5700);
+                        .color(0xFF5700)
+                        .field("", format!("r/{} \u{2022} <:upvotes:1377464305695326258> {} \u{2022} :speech_balloon: {}", post_data.subreddit, post_data.score, post_data.num_comments), false);
 
                     match categorize_reddit_post(&post_data) {
                         RedditPostCategory::SelfPost => {
